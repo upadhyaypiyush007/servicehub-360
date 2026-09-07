@@ -3,63 +3,115 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
       - develop
 
   pull_request:
     branches:
-      - master
+      - main
       - develop
 
 jobs:
   tests:
-
+    name: Laravel Tests
     runs-on: ubuntu-latest
 
-    steps:
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: servicehub
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
+    steps:
+      # --------------------------------
+      # Checkout
+      # --------------------------------
       - name: Checkout code
         uses: actions/checkout@v5
 
+      # --------------------------------
+      # PHP
+      # --------------------------------
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, sqlite3
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql
           coverage: none
 
       - name: Check PHP version
         run: php -v
 
+      # --------------------------------
+      # Composer
+      # --------------------------------
       - name: Validate composer.json
         run: composer validate --strict
 
       - name: Install PHP dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
-      - name: Prepare environment
+      # --------------------------------
+      # Laravel Environment
+      # --------------------------------
+      - name: Prepare Laravel environment
         run: cp .env.example .env
 
       - name: Generate application key
         run: php artisan key:generate
 
+      # --------------------------------
+      # Configure MySQL
+      # --------------------------------
+      - name: Configure database
+        run: |
+          sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' .env
+          sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' .env
+          sed -i 's/^DB_PORT=.*/DB_PORT=3306/' .env
+          sed -i 's/^DB_DATABASE=.*/DB_DATABASE=servicehub/' .env
+          sed -i 's/^DB_USERNAME=.*/DB_USERNAME=root/' .env
+          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=root/' .env
+
+      # --------------------------------
+      # Database
+      # --------------------------------
       - name: Run database migrations
         run: php artisan migrate --force
 
-      - name: Run Pint
+      # --------------------------------
+      # Code Style
+      # --------------------------------
+      - name: Run Laravel Pint
         run: ./vendor/bin/pint --test
 
-      - name: Run tests
+      # --------------------------------
+      # Tests
+      # --------------------------------
+      - name: Run Laravel tests
         run: php artisan test
 
+      # --------------------------------
+      # Node.js
+      # --------------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: npm
 
       - name: Install Node dependencies
         run: npm ci
 
+      # --------------------------------
+      # Frontend Build
+      # --------------------------------
       - name: Build frontend
         run: npm run build
