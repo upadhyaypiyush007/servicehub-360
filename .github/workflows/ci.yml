@@ -62,10 +62,8 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-      - name: Clear Laravel cache
-        run: |
-          php artisan config:clear
-          php artisan cache:clear
+      - name: Clear Laravel configuration
+        run: php artisan config:clear
 
       - name: Verify Laravel environment
         run: php artisan about
