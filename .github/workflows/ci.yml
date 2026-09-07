@@ -20,7 +20,7 @@ jobs:
       mysql:
         image: mysql:8.4
         env:
-          MYSQL_ROOT_PASSWORD: root
+          MYSQL_ROOT_PASSWORD:
           MYSQL_DATABASE: servicehub
         ports:
           - 3306:3306
@@ -30,16 +30,18 @@ jobs:
           --health-timeout=5s
           --health-retries=10
 
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: servicehub
+      DB_USERNAME: root
+      DB_PASSWORD: root
+
     steps:
-      # --------------------------------
-      # Checkout
-      # --------------------------------
       - name: Checkout code
         uses: actions/checkout@v5
 
-      # --------------------------------
-      # PHP
-      # --------------------------------
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -50,57 +52,34 @@ jobs:
       - name: Check PHP version
         run: php -v
 
-      # --------------------------------
-      # Composer
-      # --------------------------------
       - name: Validate composer.json
         run: composer validate --strict
 
       - name: Install PHP dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
-      # --------------------------------
-      # Laravel Environment
-      # --------------------------------
       - name: Prepare Laravel environment
-        run: cp .env.example .env
-
-      - name: Generate application key
-        run: php artisan key:generate
-
-      # --------------------------------
-      # Configure MySQL
-      # --------------------------------
-      - name: Configure database
         run: |
-          sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' .env
-          sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' .env
-          sed -i 's/^DB_PORT=.*/DB_PORT=3306/' .env
-          sed -i 's/^DB_DATABASE=.*/DB_DATABASE=servicehub/' .env
-          sed -i 's/^DB_USERNAME=.*/DB_USERNAME=root/' .env
-          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=root/' .env
+          cp .env.example .env
+          php artisan key:generate
 
-      # --------------------------------
-      # Database
-      # --------------------------------
+      - name: Clear Laravel cache
+        run: |
+          php artisan config:clear
+          php artisan cache:clear
+
+      - name: Verify Laravel environment
+        run: php artisan about
+
       - name: Run database migrations
         run: php artisan migrate --force
 
-      # --------------------------------
-      # Code Style
-      # --------------------------------
       - name: Run Laravel Pint
         run: ./vendor/bin/pint --test
 
-      # --------------------------------
-      # Tests
-      # --------------------------------
       - name: Run Laravel tests
         run: php artisan test
 
-      # --------------------------------
-      # Node.js
-      # --------------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -110,8 +89,5 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      # --------------------------------
-      # Frontend Build
-      # --------------------------------
       - name: Build frontend
         run: npm run build
